@@ -8,9 +8,19 @@ import base64
 import warnings
 warnings.filterwarnings('ignore')
 
-from model_loader import xray_model, brain_model, device
+from model_loader import xray_model, brain_model, skin_model, device
+from predict import _check_xray_like, _open_image, InvalidImageError, SKIN_CLASSES
 
 transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.Grayscale(num_output_channels=3),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406],
+                         [0.229, 0.224, 0.225])
+])
+
+# Skin lesion photos keep their color (see predict.py's transform_color) — no Grayscale.
+transform_color = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
@@ -85,7 +95,15 @@ def apply_focused_heatmap(original_img, cam, label, confidence):
     return np.array(pil_img)
 
 def generate_gradcam_xray(image_bytes: bytes):
-    img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+    try:
+        img = _open_image(image_bytes)
+    except InvalidImageError as e:
+        return {"error": True, "message": str(e)}
+
+    reject_reason = _check_xray_like(img)
+    if reject_reason:
+        return {"error": True, "message": reject_reason}
+
     tensor = transform(img).unsqueeze(0).to(device)
     tensor.requires_grad_(True)
     target_layer = xray_model.layer4[-1]
@@ -109,8 +127,39 @@ def generate_gradcam_xray(image_bytes: bytes):
     _, buffer = cv2.imencode('.jpg', cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
     return {"heatmap": base64.b64encode(buffer).decode('utf-8'), "predicted_class": label}
 
+def generate_gradcam_skin(image_bytes: bytes):
+    try:
+        img = _open_image(image_bytes)
+    except InvalidImageError as e:
+        return {"error": True, "message": str(e)}
+    tensor = transform_color(img).unsqueeze(0).to(device)
+    tensor.requires_grad_(True)
+    target_layer = skin_model.features[-1]
+    gradcam = GradCAM(skin_model, target_layer)
+    cam, pred_class, probs = gradcam.generate(tensor)
+    label = SKIN_CLASSES[pred_class]
+    confidence = probs[pred_class].item() * 100
+    NV_IDX = 5  # Melanocytic Nevus — common benign mole, treated like brain's "no tumor"
+    if pred_class != NV_IDX:
+        overlay = apply_focused_heatmap(img, cam, label, confidence)
+    else:
+        original = np.array(img.resize((224, 224)))
+        pil_img = Image.fromarray(original)
+        draw = ImageDraw.Draw(pil_img)
+        draw.rectangle([0, 0, 224, 36], fill=(22, 163, 74))
+        draw.text((8, 8), f"AI: {label}  ({confidence:.1f}%)", fill=(255, 255, 255))
+        draw.rectangle([0, 196, 224, 224], fill=(20, 20, 20))
+        draw.rectangle([6, 204, 20, 218], fill=(22, 163, 74))
+        draw.text((24, 205), "Likely Benign Mole", fill=(255, 255, 255))
+        overlay = np.array(pil_img)
+    _, buffer = cv2.imencode('.jpg', cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+    return {"heatmap": base64.b64encode(buffer).decode('utf-8'), "predicted_class": label}
+
 def generate_gradcam_brain(image_bytes: bytes):
-    img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+    try:
+        img = _open_image(image_bytes)
+    except InvalidImageError as e:
+        return {"error": True, "message": str(e)}
     tensor = transform(img).unsqueeze(0).to(device)
     tensor.requires_grad_(True)
     target_layer = brain_model.features[-1]

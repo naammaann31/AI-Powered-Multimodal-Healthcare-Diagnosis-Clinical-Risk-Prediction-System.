@@ -13,7 +13,7 @@ class PredictionRecord(BaseModel):
     patient_name: str
     patient_age: str
     patient_gender: str
-    module: str  # "xray" or "brain"
+    module: str  # "xray", "brain", or "skin"
     diagnosis: str
     risk_score: int
     probabilities: dict

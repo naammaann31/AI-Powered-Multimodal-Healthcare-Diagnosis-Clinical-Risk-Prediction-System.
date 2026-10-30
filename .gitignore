@@ -25,3 +25,5 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+venv_old_broken/
+capstone-healthcare-ai/

@@ -1,0 +1,49 @@
+{
+  "accuracy": 0.7824131901074194,
+  "roc_auc": 0.8728768203662218,
+  "f1": 0.6221258134490238,
+  "confusion_matrix": [
+    [
+      2415,
+      686
+    ],
+    [
+      185,
+      717
+    ]
+  ],
+  "per_class_report": {
+    "nopneumonia": {
+      "precision": 0.9288461538461539,
+      "recall": 0.7787810383747178,
+      "f1-score": 0.8472197860024557,
+      "support": 3101.0
+    },
+    "pneumonia": {
+      "precision": 0.5110477548111191,
+      "recall": 0.79490022172949,
+      "f1-score": 0.6221258134490238,
+      "support": 902.0
+    },
+    "accuracy": 0.7824131901074194,
+    "macro avg": {
+      "precision": 0.7199469543286365,
+      "recall": 0.7868406300521039,
+      "f1-score": 0.7346727997257398,
+      "support": 4003.0
+    },
+    "weighted avg": {
+      "precision": 0.8347032220625912,
+      "recall": 0.7824131901074194,
+      "f1-score": 0.7964991356793991,
+      "support": 4003.0
+    }
+  },
+  "classes": [
+    "nopneumonia",
+    "pneumonia"
+  ],
+  "train_size": 18678,
+  "val_size": 4003,
+  "test_size": 4003
+}
